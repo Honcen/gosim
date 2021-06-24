@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
 type User struct {
@@ -60,7 +61,7 @@ func (this *User) Offline() {
 }
 
 //发送消息
-func (this *User) sendMsg(msg string) {
+func (this *User) SendMsg(msg string) {
 	this.conn.Write([]byte(msg))
 }
 
@@ -68,14 +69,29 @@ func (this *User) sendMsg(msg string) {
 func (this *User) DoMessage(msg string) {
 	if msg == "who" {
 		//查询当前在线用户数 打印出在线信息
-		// this.sendMsg("当前共有" + strconv.Itoa(len(this.server.OnlineMap)) + "人在线")
-		this.sendMsg(fmt.Sprintf("当前共有 %d 人在线\n", len(this.server.OnlineMap)))
+		// this.SendMsg("当前共有" + strconv.Itoa(len(this.server.OnlineMap)) + "人在线")
+		this.SendMsg(fmt.Sprintf("当前共有 %d 人在线\n", len(this.server.OnlineMap)))
 		this.server.mapLock.Lock()
 		for _, user := range this.server.OnlineMap {
 			onlineMsg := "[" + user.Addr + "]" + user.Name + "：在线。。。\n"
-			this.sendMsg(onlineMsg)
+			this.SendMsg(onlineMsg)
 		}
 		this.server.mapLock.Unlock()
+
+	} else if len(msg) > 7 && msg[:7] == "rename|" {
+		//消息格式 rename|张三
+		newName := strings.Split(msg, "|")[1]
+		_, ok := this.server.OnlineMap[newName]
+		if ok {
+			this.SendMsg("用户名 " + newName + " 已经存在")
+		} else {
+			this.server.mapLock.Lock()
+			delete(this.server.OnlineMap, this.Name)
+			this.server.OnlineMap[newName] = this
+			this.server.mapLock.Unlock()
+			this.Name = newName
+			this.SendMsg("您的用户名已经更新为：" + newName)
+		}
 
 	} else {
 		this.server.BroadCast(this, msg)
